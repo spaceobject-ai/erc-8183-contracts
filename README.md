@@ -55,11 +55,9 @@ If you already indexed the upstream ABI, update those event signatures before po
 
 ## Deployment
 
-Nothing is deployed. Fill this table after the first release.
-
 | Network | Chain ID | Proxy | Implementation | Admin | Treasury |
 | --- | --- | --- | --- | --- | --- |
-| | | | | | |
+| `arc-testnet` | 5042002 | [`0x85A21c175655BeBc21F4727bE480Fec57Cd18b1a`](https://testnet.arcscan.app/address/0x85A21c175655BeBc21F4727bE480Fec57Cd18b1a) | [`0x59FA29564cD6F2084246eAaAB99DB9453D7B5417`](https://testnet.arcscan.app/address/0x59FA29564cD6F2084246eAaAB99DB9453D7B5417) | `0x6CD4652887e41142Dd7e9FD2dA720809685Def2D` | `0x6CD4652887e41142Dd7e9FD2dA720809685Def2D` |
 
 [script/Deploy.s.sol](script/Deploy.s.sol) deploys `ERC8183WithAuthorization`, the core plus EIP-712 relayed entrypoints. Swap the contract in that file if you want `ERC8183` only.
 
