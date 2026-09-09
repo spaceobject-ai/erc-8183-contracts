@@ -63,6 +63,16 @@ contract ERC8183Test is Test {
     address evaluator = makeAddr("evaluator");
 
     // Events (must match ERC8183.sol exactly for vm.expectEmit)
+    event JobCreated(
+        uint256 indexed jobId,
+        address indexed client,
+        address indexed provider,
+        address evaluator,
+        uint48 expiredAt,
+        address hook,
+        uint256 providerAgentId,
+        string description
+    );
     event ProviderSet(uint256 indexed jobId, address indexed provider, uint256 agentId);
     event BudgetSet(uint256 indexed jobId, address indexed token, uint256 amount);
     event JobFunded(uint256 indexed jobId, address indexed client, uint256 amount);
@@ -232,14 +242,20 @@ contract ERC8183Test is Test {
         uint256 AGENT_ID = 42;
 
         // createJob with agentId when provider is known
+        vm.expectEmit(true, true, true, true, address(core));
+        emit JobCreated(1, client, provider, evaluator, expiry, address(0), AGENT_ID, "Job with agentId");
         vm.prank(client);
         core.createJob(provider, evaluator, expiry, "Job with agentId", address(0), AGENT_ID);
         assertEq(core.getJob(1).providerAgentId, AGENT_ID);
+        assertEq(core.getJob(1).description, "Job with agentId");
 
         // createJob without provider: agentId should be 0 even if a non-zero value is passed
+        vm.expectEmit(true, true, true, true, address(core));
+        emit JobCreated(2, client, address(0), evaluator, expiry, address(0), 0, "Job without provider");
         vm.prank(client);
         core.createJob(address(0), evaluator, expiry, "Job without provider", address(0), 99);
         assertEq(core.getJob(2).providerAgentId, 0);
+        assertEq(core.getJob(2).description, "Job without provider");
 
         uint256 AGENT_ID_2 = 7;
         vm.expectEmit(true, true, true, true, address(core));
@@ -250,9 +266,12 @@ contract ERC8183Test is Test {
         assertEq(core.getJob(2).providerAgentId, AGENT_ID_2);
 
         // agentId = 0 is valid
+        vm.expectEmit(true, true, true, true, address(core));
+        emit JobCreated(3, client, provider, evaluator, expiry, address(0), 0, "No agentId");
         vm.prank(client);
         core.createJob(provider, evaluator, expiry, "No agentId", address(0), 0);
         assertEq(core.getJob(3).providerAgentId, 0);
+        assertEq(core.getJob(3).description, "No agentId");
     }
 
     // ──────────────────────────────────────────────────────────

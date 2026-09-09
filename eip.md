@@ -93,7 +93,7 @@ SHALL revert if `job.provider == address(0)` (provider MUST be set before fundin
 ### Core Functions
 
 - **createJob(provider, evaluator, expiredAt, description, hook?, providerAgentId?)**
-Called by client. Creates job in Open with `client = msg.sender`, `provider`, `evaluator`, `expiredAt`, `description`, optional `hook` address, and default `payoutReceiver = address(0)`. SHALL revert if `evaluator` is zero, if `expiredAt` is not at least 5 minutes in the future, if `provider == evaluator`, or if `msg.sender == provider`. **Provider MAY be zero**; if so, client MUST call `setProvider` before `fund`. `hook` MAY be `address(0)` (no hook); if non-zero, the hook MUST be admin-whitelisted and SHOULD advertise support for the `IERC8183Hook` interface via ERC-165. `providerAgentId` is the provider's [ERC-8004](./eip-8004.md) agent identity; if `provider` is non-zero and `providerAgentId` is non-zero, SHALL set `job.providerAgentId = providerAgentId`; the contract MAY verify that `provider` is the owner or operator of that `providerAgentId` on the ERC-8004 registry. Returns `jobId`.
+Called by client. Creates job in Open with `client = msg.sender`, `provider`, `evaluator`, `expiredAt`, `description`, optional `hook` address, and default `payoutReceiver = address(0)`. SHALL revert if `evaluator` is zero, if `expiredAt` is not at least 5 minutes in the future, if `provider == evaluator`, or if `msg.sender == provider`. **Provider MAY be zero**; if so, client MUST call `setProvider` before `fund`. `hook` MAY be `address(0)` (no hook); if non-zero, the hook MUST be admin-whitelisted and SHOULD advertise support for the `IERC8183Hook` interface via ERC-165. `providerAgentId` is the provider's [ERC-8004](./eip-8004.md) agent identity; if `provider` is non-zero and `providerAgentId` is non-zero, SHALL set `job.providerAgentId = providerAgentId`; the contract MAY verify that `provider` is the owner or operator of that `providerAgentId` on the ERC-8004 registry. SHALL emit `JobCreated` including `description` and `providerAgentId` (`0` if the provider is unset). Returns `jobId`.
 - **setPayoutReceiver(jobId, payoutReceiver)**
 Called by provider. SHALL revert if job is not Open, the job has expired, caller is not the job's provider, `payoutReceiver` is the escrow contract itself, or the payment token is already set and `payoutReceiver == job.paymentToken`. SHALL set the provider-side payout recipient for the job. `payoutReceiver` MAY be `address(0)` to pay the provider directly. Implementations SHOULD emit `PayoutReceiverSet`.
 - **setProvider(jobId, provider, agentId?)**
@@ -339,8 +339,8 @@ Step 5 — job continues normally
 
 Implementations SHOULD emit at least:
 
-- **JobCreated**(jobId, client, provider, evaluator, expiredAt, hook) — includes the hook address (`address(0)` if no hook)
-- **ProviderSet**(jobId, provider, agentId) — when provider is set on a job that was created without one; `agentId` is 0 if not specified
+- **JobCreated**(jobId, client, provider, evaluator, expiredAt, hook, providerAgentId, description) — includes the hook address (`address(0)` if no hook). `providerAgentId` is `0` if the provider is unset or not specified. `description` is the job brief stored at creation, so event-only indexers do not need a storage read.
+- **ProviderSet**(jobId, provider, agentId) — when provider is set on a job that was created without one; `agentId` is 0 if not specified. Jobs created with a provider already include `providerAgentId` on `JobCreated`.
 - **BudgetSet**(jobId, token, amount) — includes the payment token address
 - **JobFunded**(jobId, client, amount)
 - **JobSubmitted**(jobId, provider, deliverable) — when provider submits work for evaluation
@@ -409,6 +409,7 @@ The following patterns are RECOMMENDED:
 
 - **On-chain identity binding via agentId**
   - When `setProvider` (or `createJob`) is called with a non-zero `agentId`, the job stores `providerAgentId` on-chain. This enables direct identity binding: hooks and evaluator contracts can look up the provider's ERC‑8004 agent record without off-chain mapping.
+  - `JobCreated` includes `providerAgentId` so ERC‑8004 indexers observe identity binding even when the provider is set at creation (when `ProviderSet` is not emitted).
   - Reputation writes (e.g. on `complete` or `reject`) can reference the stored `providerAgentId` to attribute outcomes to the correct agent identity in the ERC‑8004 registry.
 
 - **Separation of concerns**

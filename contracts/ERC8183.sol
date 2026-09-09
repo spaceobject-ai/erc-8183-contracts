@@ -103,13 +103,16 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     uint256[50] private __gap;
 
     /// @notice Emitted when a new job is created
+    /// @dev `providerAgentId` is 0 if `provider` is unset. `description` is the job brief stored at creation.
     event JobCreated(
         uint256 indexed jobId,
         address indexed client,
         address indexed provider,
         address evaluator,
         uint48 expiredAt,
-        address hook
+        address hook,
+        uint256 providerAgentId,
+        string description
     );
     /// @notice Emitted when a provider is assigned to a job
     event ProviderSet(
@@ -545,6 +548,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         }
 
         uint256 jobId = ++jobCounter;
+        uint256 storedAgentId = provider != address(0) ? providerAgentId : 0;
         jobs[jobId] = Job({
             client: client,
             status: JobStatus.Open,
@@ -555,7 +559,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
             budget: 0,
             hook: hook,
             paymentToken: address(0),
-            providerAgentId: provider != address(0) ? providerAgentId : 0,
+            providerAgentId: storedAgentId,
             description: description,
             settledAmount: 0,
             payoutReceiver: address(0)
@@ -567,7 +571,9 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
             provider,
             evaluator,
             expiredAt,
-            hook
+            hook,
+            storedAgentId,
+            description
         );
         return jobId;
     }

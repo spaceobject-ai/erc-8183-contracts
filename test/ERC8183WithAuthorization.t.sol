@@ -71,6 +71,16 @@ contract ERC8183WithAuthorizationTest is Test {
 
     event AuthorizationUsed(address indexed signer, bytes32 indexed nonce);
     event AuthorizationCanceled(address indexed signer, bytes32 indexed nonce);
+    event JobCreated(
+        uint256 indexed jobId,
+        address indexed client,
+        address indexed provider,
+        address evaluator,
+        uint48 expiredAt,
+        address hook,
+        uint256 providerAgentId,
+        string description
+    );
     event PayoutReceiverSet(uint256 indexed jobId, address indexed payoutReceiver);
     event ClaimSubmitted(
         uint256 indexed jobId,
@@ -679,6 +689,8 @@ contract ERC8183WithAuthorizationTest is Test {
 
         vm.expectEmit(true, true, true, true, address(core));
         emit AuthorizationUsed(client, _packNonce(client, nonce));
+        vm.expectEmit(true, true, true, true, address(core));
+        emit JobCreated(1, client, provider, evaluator, expiry, address(0), 0, description);
         vm.prank(relayer);
         uint256 jobId = core.createJobWithAuthorization(
             _createParams(provider, evaluator, expiry, description, address(0), 0),
@@ -688,6 +700,8 @@ contract ERC8183WithAuthorizationTest is Test {
         ERC8183.Job memory job = core.getJob(jobId);
         assertEq(job.client, client);
         assertEq(job.payoutReceiver, address(0));
+        assertEq(job.description, description);
+        assertEq(job.providerAgentId, 0);
     }
 
     function test_setPayoutReceiverWithAuthorization_ProviderOnlyOpenOnlyAndLocksAfterFund() public {
