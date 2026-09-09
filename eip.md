@@ -342,24 +342,24 @@ Implementations SHOULD emit at least:
 - **JobCreated**(jobId, client, provider, evaluator, expiredAt, hook, providerAgentId, description) — includes the hook address (`address(0)` if no hook). `providerAgentId` is `0` if the provider is unset or not specified. `description` is the job brief stored at creation, so event-only indexers do not need a storage read.
 - **ProviderSet**(jobId, provider, agentId) — when provider is set on a job that was created without one; `agentId` is 0 if not specified. Jobs created with a provider already include `providerAgentId` on `JobCreated`.
 - **BudgetSet**(jobId, token, amount) — includes the payment token address
-- **JobFunded**(jobId, client, amount)
+- **JobFunded**(jobId, client, token, amount) — includes the payment token so fund logs are self-describing on a multi-token escrow
 - **JobSubmitted**(jobId, provider, deliverable) — when provider submits work for evaluation
 - **PayoutReceiverSet**(jobId, payoutReceiver) — when a provider-side payout receiver is set or updated
 - **JobCompleted**(jobId, evaluator, reason)
 - **JobRejected**(jobId, rejector, reason)
 - **JobExpired**(jobId)
-- **PaymentReleased**(jobId, recipient, amount) — net provider-side amount paid to the provider or payout receiver on completion or on each settlement
-- **Disbursed**(jobId, receiver, selector, amount) — emitted after `IDisburser.onDisbursement` is invoked
-- **PlatformFeePaid**(jobId, platformTreasury, amount) — only emitted when a non-zero platform fee is taken
-- **EvaluatorFeePaid**(jobId, evaluator, amount) — only emitted when a non-zero evaluator fee is taken
-- **Refunded**(jobId, client, amount)
-- **Settled**(jobId, cumulativeAmount, delta) — emitted on every settlement regardless of path
+- **PaymentReleased**(jobId, recipient, token, amount) — net provider-side amount paid to the provider or payout receiver on completion or on each settlement
+- **Disbursed**(jobId, receiver, token, selector, amount) — emitted after `IDisburser.onDisbursement` is invoked; includes the same token passed to the callback
+- **PlatformFeePaid**(jobId, platformTreasury, token, amount) — only emitted when a non-zero platform fee is taken
+- **EvaluatorFeePaid**(jobId, evaluator, token, amount) — only emitted when a non-zero evaluator fee is taken
+- **Refunded**(jobId, client, token, amount)
+- **Settled**(jobId, token, cumulativeAmount, delta) — emitted on every settlement regardless of path
 - **ClaimSubmitted**(jobId, provider, cumulativeAmount, delta, deliverable, optParams) — provider files a pending claim; `optParams` is emitted so the exact claim preimage can be propagated to observers
 - **ClaimSettled**(jobId, settler, cumulativeAmount, delta, deliverable) — direct client settlement; `deliverable` is the settler's attestation, not a verified provider claim
 - **ClaimApproved**(jobId, approver, cumulativeAmount, delta, deliverable) — pending claim approved by client or evaluator
 - **ClaimRejected**(jobId, rejector, reason) — pending claim rejected, withdrawn, or superseded
 
-Note that `PaymentReleased`, `PlatformFeePaid`, and `EvaluatorFeePaid` fire on each settlement, not only on completion.
+Note that `PaymentReleased`, `PlatformFeePaid`, and `EvaluatorFeePaid` fire on each settlement, not only on completion. Value-moving events and `Settled` include `token` because one escrow contract may hold many ERC-20s; claim lifecycle events do not repeat it.
 
 Implementations that add admin tooling SHOULD also emit operational events (e.g. `HookWhitelistUpdated`, `PaymentTokenAllowlistUpdated`, `HookDetached`, `PlatformFeeUpdated`, `EvaluatorFeeUpdated`, `EmergencyWithdraw`) so off-chain indexers can track configuration changes.
 
