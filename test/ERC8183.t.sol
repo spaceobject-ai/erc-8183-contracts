@@ -79,6 +79,9 @@ contract ERC8183Test is Test {
     event JobSubmitted(uint256 indexed jobId, address indexed provider, bytes32 deliverable);
     event JobCompleted(uint256 indexed jobId, address indexed evaluator, bytes32 reason);
     event PaymentReleased(uint256 indexed jobId, address indexed recipient, address indexed token, uint256 amount);
+    event PlatformFeePaid(uint256 indexed jobId, address indexed platformTreasury, address indexed token, uint256 amount);
+    event EvaluatorFeePaid(uint256 indexed jobId, address indexed evaluator, address indexed token, uint256 amount);
+    event Refunded(uint256 indexed jobId, address indexed client, address indexed token, uint256 amount);
     event PayoutReceiverSet(uint256 indexed jobId, address indexed payoutReceiver);
     event Disbursed(uint256 indexed jobId, address indexed receiver, address indexed token, bytes4 selector, uint256 amount);
     event PaymentTokenAllowlistUpdated(address indexed token, bool status);
@@ -577,6 +580,12 @@ contract ERC8183Test is Test {
 
         uint256 jobId = _createFundedJob(TWENTY_USDC);
 
+        vm.expectEmit(true, true, true, true, address(core));
+        emit PlatformFeePaid(jobId, deployer, address(usdc), 1_000_000);
+        vm.expectEmit(true, true, true, true, address(core));
+        emit EvaluatorFeePaid(jobId, evaluator, address(usdc), 500_000);
+        vm.expectEmit(true, true, true, true, address(core));
+        emit PaymentReleased(jobId, provider, address(usdc), 8_500_000);
         vm.prank(client);
         core.settleClaim(jobId, TEN_USDC, EMPTY_DELIVERABLE, "");
 
@@ -688,6 +697,12 @@ contract ERC8183Test is Test {
         uint256 fee = 2_000_000;
         uint256 net = 16_000_000;
 
+        vm.expectEmit(true, true, true, true, address(core));
+        emit PlatformFeePaid(jobId, deployer, address(usdc), fee);
+        vm.expectEmit(true, true, true, true, address(core));
+        emit EvaluatorFeePaid(jobId, evaluator, address(usdc), fee);
+        vm.expectEmit(true, true, true, true, address(core));
+        emit PaymentReleased(jobId, address(disburser), address(usdc), net);
         vm.prank(evaluator);
         core.complete(jobId, bytes32("ok"), "");
 
@@ -782,6 +797,8 @@ contract ERC8183Test is Test {
         core.fund(jobId, address(usdc), TWENTY_USDC, "");
 
         vm.warp(uint256(expiry) + 1);
+        vm.expectEmit(true, true, true, true, address(core));
+        emit Refunded(jobId, client, address(usdc), TWENTY_USDC);
         core.claimRefund(jobId);
 
         assertEq(uint8(core.getJob(jobId).status), uint8(ERC8183.JobStatus.Expired));
@@ -1222,6 +1239,8 @@ contract ERC8183Test is Test {
 
         vm.expectEmit(true, true, true, true, address(core));
         emit ClaimRejected(jobId, evaluator, reason);
+        vm.expectEmit(true, true, true, true, address(core));
+        emit Refunded(jobId, client, address(usdc), TWENTY_USDC);
         vm.prank(evaluator);
         core.reject(jobId, reason, "");
 
