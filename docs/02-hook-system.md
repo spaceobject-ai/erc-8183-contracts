@@ -136,7 +136,7 @@ function fund(
         uint256 received = token.balanceOf(address(this)) - balanceBefore;
         if (received != job.budget) revert UnexpectedFundedAmount();
     }
-    emit JobFunded(jobId, job.client, job.budget);
+    emit JobFunded(jobId, job.client, job.paymentToken, job.budget);
 
     _afterHook(job.hook, jobId, this.fund.selector, data);    // for bookkeeping / side effects
 }

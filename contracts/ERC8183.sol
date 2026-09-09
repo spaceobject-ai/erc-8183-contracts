@@ -103,13 +103,16 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     uint256[50] private __gap;
 
     /// @notice Emitted when a new job is created
+    /// @dev `providerAgentId` is 0 if `provider` is unset. `description` is the job brief stored at creation.
     event JobCreated(
         uint256 indexed jobId,
         address indexed client,
         address indexed provider,
         address evaluator,
         uint48 expiredAt,
-        address hook
+        address hook,
+        uint256 providerAgentId,
+        string description
     );
     /// @notice Emitted when a provider is assigned to a job
     event ProviderSet(
@@ -126,6 +129,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     event Disbursed(
         uint256 indexed jobId,
         address indexed receiver,
+        address indexed token,
         bytes4 selector,
         uint256 amount
     );
@@ -139,6 +143,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     event JobFunded(
         uint256 indexed jobId,
         address indexed client,
+        address indexed token,
         uint256 amount
     );
     /// @notice Emitted when the provider submits a deliverable
@@ -167,29 +172,34 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     event PaymentReleased(
         uint256 indexed jobId,
         address indexed recipient,
+        address indexed token,
         uint256 amount
     );
     /// @notice Emitted when the platform fee gets distributed
     event PlatformFeePaid(
         uint256 indexed jobId,
         address indexed platformTreasury,
+        address indexed token,
         uint256 amount
     );
     /// @notice Emitted when the evaluator fee is distributed
     event EvaluatorFeePaid(
         uint256 indexed jobId,
         address indexed evaluator,
+        address indexed token,
         uint256 amount
     );
     /// @notice Emitted when escrowed funds are returned to the client
     event Refunded(
         uint256 indexed jobId,
         address indexed client,
+        address indexed token,
         uint256 amount
     );
     /// @notice Emitted on each successful partial settlement
     event Settled(
         uint256 indexed jobId,
+        address indexed token,
         uint256 cumulativeAmount,
         uint256 delta
     );
@@ -479,7 +489,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         address recipient = job.payoutReceiver == address(0) ? job.provider : job.payoutReceiver;
         if (net > 0) {
             IERC20(job.paymentToken).safeTransfer(recipient, net);
-            emit PaymentReleased(jobId, recipient, net);
+            emit PaymentReleased(jobId, recipient, job.paymentToken, net);
 
             if (_isDisburser(recipient)) {
                 IDisburser(recipient).onDisbursement(
@@ -489,7 +499,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
                     net,
                     optParams
                 );
-                emit Disbursed(jobId, recipient, selector, net);
+                emit Disbursed(jobId, recipient, job.paymentToken, selector, net);
             }
         }
     }
@@ -545,6 +555,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         }
 
         uint256 jobId = ++jobCounter;
+        uint256 storedAgentId = provider != address(0) ? providerAgentId : 0;
         jobs[jobId] = Job({
             client: client,
             status: JobStatus.Open,
@@ -555,7 +566,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
             budget: 0,
             hook: hook,
             paymentToken: address(0),
-            providerAgentId: provider != address(0) ? providerAgentId : 0,
+            providerAgentId: storedAgentId,
             description: description,
             settledAmount: 0,
             payoutReceiver: address(0)
@@ -567,7 +578,9 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
             provider,
             evaluator,
             expiredAt,
-            hook
+            hook,
+            storedAgentId,
+            description
         );
         return jobId;
     }
@@ -696,7 +709,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
             uint256 received = token.balanceOf(address(this)) - balanceBefore;
             if (received != job.budget) revert UnexpectedFundedAmount();
         }
-        emit JobFunded(jobId, actor, job.budget);
+        emit JobFunded(jobId, actor, job.paymentToken, job.budget);
 
         _afterHook(job.hook, jobId, this.fund.selector, data);
     }
@@ -783,11 +796,11 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         IERC20 token = IERC20(job.paymentToken);
         if (platformFee > 0) {
             token.safeTransfer(platformTreasury, platformFee);
-            emit PlatformFeePaid(jobId, platformTreasury, platformFee);
+            emit PlatformFeePaid(jobId, platformTreasury, job.paymentToken, platformFee);
         }
         if (evalFee > 0) {
             token.safeTransfer(job.evaluator, evalFee);
-            emit EvaluatorFeePaid(jobId, job.evaluator, evalFee);
+            emit EvaluatorFeePaid(jobId, job.evaluator, job.paymentToken, evalFee);
         }
         _payout(jobId, job, net, this.complete.selector, optParams);
 
@@ -848,7 +861,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
             refundAmount > 0
         ) {
             IERC20(job.paymentToken).safeTransfer(job.client, refundAmount);
-            emit Refunded(jobId, job.client, refundAmount);
+            emit Refunded(jobId, job.client, job.paymentToken, refundAmount);
         }
 
         emit JobRejected(jobId, actor, reason);
@@ -880,7 +893,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         uint256 refundAmount = job.budget - job.settledAmount;
         if (refundAmount > 0 && (prev == JobStatus.Funded || prev == JobStatus.Submitted)) {
             IERC20(job.paymentToken).safeTransfer(job.client, refundAmount);
-            emit Refunded(jobId, job.client, refundAmount);
+            emit Refunded(jobId, job.client, job.paymentToken, refundAmount);
         }
 
         emit JobExpired(jobId);
@@ -900,11 +913,11 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         IERC20 token = IERC20(job.paymentToken);
         if (platformFee > 0) {
             token.safeTransfer(platformTreasury, platformFee);
-            emit PlatformFeePaid(jobId, platformTreasury, platformFee);
+            emit PlatformFeePaid(jobId, platformTreasury, job.paymentToken, platformFee);
         }
         if (evalFee > 0) {
             token.safeTransfer(job.evaluator, evalFee);
-            emit EvaluatorFeePaid(jobId, job.evaluator, evalFee);
+            emit EvaluatorFeePaid(jobId, job.evaluator, job.paymentToken, evalFee);
         }
         _payout(jobId, job, net, selector, optParams);
     }
@@ -989,7 +1002,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         job.settledAmount = cumulativeAmount;
         _distributeSettlement(jobId, job, delta, this.settleClaim.selector, optParams);
 
-        emit Settled(jobId, cumulativeAmount, delta);
+        emit Settled(jobId, job.paymentToken, cumulativeAmount, delta);
         emit ClaimSettled(jobId, actor, cumulativeAmount, delta, deliverable);
 
         _afterHook(job.hook, jobId, this.settleClaim.selector, data);
@@ -1031,7 +1044,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         job.settledAmount = cumulativeAmount;
         _distributeSettlement(jobId, job, delta, this.approveClaim.selector, optParams);
 
-        emit Settled(jobId, cumulativeAmount, delta);
+        emit Settled(jobId, job.paymentToken, cumulativeAmount, delta);
         emit ClaimApproved(jobId, actor, cumulativeAmount, delta, deliverable);
 
         _afterHook(job.hook, jobId, this.approveClaim.selector, data);
