@@ -2,9 +2,11 @@
 
 Reference implementation of [ERC-8183](https://eips.ethereum.org/EIPS/eip-8183) — a Job primitive for trustless agent commerce. Its core features are a job escrow protocol with evaluator attestation and an optional hook system for extensibility.
 
+This is the [SpaceObject](https://github.com/spaceobject-ai) fork of [`erc-8183/base-contracts`](https://github.com/erc-8183/base-contracts). No proxy is live yet. After the first broadcast, put the addresses in the [deployment](#deployment) table.
+
 ## Quick Start
 
-Requires [Foundry](https://getfoundry.sh/).
+Requires [Foundry](https://getfoundry.sh/). Compiler is solc 0.8.28, EVM Cancun. See [foundry.toml](foundry.toml).
 
 ```shell
 forge install
@@ -36,6 +38,50 @@ Jobs can optionally attach a **hook contract** (`IERC8183Hook`) to extend behavi
 - `afterAction` — called after state changes, for bookkeeping and side effects
 
 When `hook == address(0)`, the contract operates as a standalone job escrow with no callbacks. See [docs/02-hook-system.md](docs/02-hook-system.md) for the full design.
+
+## What changed
+
+The latest merge on this fork is [#1](https://github.com/spaceobject-ai/erc-8183-contracts/pull/1) (`fb0695d`). Event ABIs differ from upstream [`erc-8183/base-contracts`](https://github.com/erc-8183/base-contracts).
+
+**JobCreated.** The log now includes `providerAgentId` and `description`. When the client sets the provider at creation, `ProviderSet` does not fire, so indexers could not recover the brief or agent id from logs alone. If `provider` is unset, `providerAgentId` is emitted as 0.
+
+**Payment token on value-moving events.** `JobFunded`, `PaymentReleased`, `Disbursed`, `PlatformFeePaid`, `EvaluatorFeePaid`, `Refunded`, and `Settled` now index the ERC-20. Those logs used to omit the token, so a consumer had to join `BudgetSet`.
+
+Claim logs (`ClaimSubmitted`, `ClaimSettled`, `ClaimApproved`, `ClaimRejected`) still omit the token. They emit in the same transaction as `Settled` when value moves.
+
+Tests pin `Refunded`, `PlatformFeePaid`, and `EvaluatorFeePaid` argument order so a field slip fails CI.
+
+If you already indexed the upstream ABI, update those event signatures before pointing at this fork.
+
+## Deployment
+
+Nothing is deployed. Fill this table after the first release.
+
+| Network | Chain ID | Proxy | Implementation | Admin | Treasury |
+| --- | --- | --- | --- | --- | --- |
+| | | | | | |
+
+[script/Deploy.s.sol](script/Deploy.s.sol) deploys `ERC8183WithAuthorization`, the core plus EIP-712 relayed entrypoints. Swap the contract in that file if you want `ERC8183` only.
+
+### Run the script
+
+```shell
+forge script script/Deploy.s.sol:Deploy \
+  --rpc-url $RPC_URL \
+  --broadcast \
+  --verify
+```
+
+Dry run without `--broadcast`. The signer pays gas. It does not need to be `ADMIN` unless `PAYMENT_TOKEN` is set.
+
+### After deploy
+
+1. `setPaymentTokenAllowed(token, true)` for each payment token.
+2. `setHookWhitelist(hook, true)` for each hook other than `address(0)`.
+3. `setPlatformFee` and `setEvaluatorFee` if fees should be nonzero. Combined basis points cannot exceed 10000.
+4. Write proxy, implementation, admin, and treasury into the table above.
+
+Upgrades are UUPS. `DEFAULT_ADMIN_ROLE` calls `upgradeToAndCall` on the proxy. If you later swap a live `ERC8183` proxy to `ERC8183WithAuthorization`, the admin must call `initializeAuthorizationV2()` once so EIP-712 storage is set.
 
 ## Contracts
 
@@ -80,7 +126,7 @@ See [docs/01-architecture.md](docs/01-architecture.md) for state machine and seq
 
 ## Contributing
 
-This is the reference implementation for ERC-8183. Contributions, feedback, and discussion are welcome - please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get started.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Open implementation PRs here. Take protocol changes to the ERC-8183 maintainers.
 
 ## License
 
